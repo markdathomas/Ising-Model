@@ -18,7 +18,10 @@ except ImportError:
 
 
 def load_data(folder_date, data_date, data_params, data_name):
-    file_to_load = "../../Data/" + folder_date +" " + data_params + "/" + data_date + " " + data_name + ".npy"
+    if data_date == None:
+        file_to_load = "../../Data/" + folder_date +" " + data_params + "/" + data_name + ".npy"
+    else:
+        file_to_load = "../../Data/" + folder_date +" " + data_params + "/" + data_date + " " + data_name + ".npy"
     loaded_array = load_numpy_array(file_to_load)
     return loaded_array
 

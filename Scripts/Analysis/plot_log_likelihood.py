@@ -2,7 +2,7 @@
 """
 Created on Wed Nov 24 00:14:44 2021
 
-@author: kramm
+@author: Mark
 """
 
 
@@ -19,7 +19,7 @@ except ImportError:
     
 sys.path.insert(0, "../Analysis")
 try:
-    from file_restructure import load_numpy_array, make_directory
+    from file_restructure import load_numpy_array
 except ImportError:
     print('No Import')    
 
@@ -28,13 +28,14 @@ except ImportError:
 
 def generate_loglik_plot(topdir, data_params, data_date, folder_date, data_name):
     
-    raw_data_filepath = topdir + "Data/"+folder_date+" "+data_params+"/"+data_date+" "+data_name+".npy"
-    loglik_filepath = topdir + "Data/"+folder_date+" "+data_params+"/"+data_date+" "+"loglik.npy"
+    raw_data_filepath = topdir + "Data/"+folder_date+" "+data_params+"/"+data_name+".npy"
+    loglik_filepath = topdir + "Data/"+folder_date+" "+data_params+"/"+"loglik.npy"
     
     if not os.path.isfile(loglik_filepath): #If the loglik file hasn't been generated yet
         print ("Generating the loglik data")
         generate_loglik_data(folder_date, data_params, data_date, data_name)
-   
+    else:
+        print("Using older data")
     loglik_list = load_numpy_array(loglik_filepath)
     
     run_parameters, distribution_data = load_numpy_array(raw_data_filepath)
@@ -63,9 +64,9 @@ def generate_loglik_plot(topdir, data_params, data_date, folder_date, data_name)
     return
 
 topdir = "../../" 
-data_params = "m 6 n 6b 200 [1000, 1000, 1000, 1000][0.1, 0.01, 0.001, 0.0001]"
-data_date = "2021-11-29"
-folder_date = "2021-11-29"
+data_params = "m 3 n 3b 200 [1000, 100, 100, 100][-0.1, -0.01, -0.001, -0.0001]"
+data_date = "2021-12-06"
+folder_date = "2021-12-06"
 data_name = "raw_data"
 
 

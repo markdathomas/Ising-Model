@@ -2,167 +2,128 @@
 """
 Created on Mon Nov  1 12:52:06 2021
 
-@author: kramm
+@author: Mark Thomas
 """
-import matplotlib.pyplot as plt
+#External imports:
 import numpy as np
 import random
+from tqdm import tqdm
 
+#Imports from current directory:
 from learning_Step import take_N_cdk_steps
+"""NEEDS EDITING
 from model_and_data_averages import prob_v_given_theta, partition_function
+"""
 from all_vectors import all_vectors_ising
 
-from tqdm import trange, tqdm
-import time
-
-import sys
-sys.path.insert(0, "../Analysis")
-from log_likelihood import log_likelihood
-
-initial_time= time.time()
-
-
-
+""" NEEDS EDITING
 def learned_distribution(theta, m_visible, n_hidden):
+#    Given number of hidden and visible otes, and given
+#    theta, finds the probability distribution over the visible
+#    nodes.
+#    
+#    m_visible = Number of visible nodes
+#    n_hidden = Number of hidden nodes
+#    
     
+    #Slow steps specific to Ising model:
     all_visible = all_vectors_ising(m_visible)
     all_hidden = all_vectors_ising(n_hidden)
-    Z = partition_function(all_visible, all_hidden, theta) #SLOW STEP HERE
+    Z = partition_function(all_visible, all_hidden, theta) 
     distribution = np.zeros(2**m_visible)
-    for i in range(len(all_visible)):
+    
+    
+    for i in range(len(all_visible)): #"For each visible node"
         v = all_visible[i]
-        pv = prob_v_given_theta(all_visible, all_hidden, v, theta,Z)
+        #"Find the occupation probability of that node, given theta":
+        pv = prob_v_given_theta(all_visible, all_hidden, v, theta,Z) 
         distribution[i] = pv
     return distribution
+"""
 
 
-def get_learned_distribution(theta, m_visible, n_hidden, N_curves, alpha_list, k_list, batch_size, init_v, steps = [100,100,100],  plot=False):
+
+def learn_distribution(run_parameters):
+    """Given run parameters organised as np.array([step_size_list, m_visible,
+    n_hidden, alpha_list, k_steps_list, batch_size]), 
+    where 
+    step_size_list: List containing number of epochs per learning stage, e.g. [100,100,200,200]
+    m_visible: Number of visible nodes
+    n_hidden: Number of hidden nodes
+    alpha_list: List containg the learning rate at each stage
+    k_steps_list: List containing the number of k-steps taken in the contrastive 
+    divergence algorithm at each learning stage
+    batch_size: Number of vectors used in the batch to calculate averages of the likelihood function
     
-    assert N_curves == len(steps)
+    Generates random initial theta and initial training vector values for eaach batch, 
+    learns the associated distribution, then propagates the theta value in the direction
+    of increasing log likelihood. Does this for the specified run (inclding number
+    of steps, and graph properties)
     
+    Learns the data and returns it in the form:
+    distribution_data = init_theta, theta_history_list, batch_history, cdk_history
+    
+    !Notes on how batch history works (theta also works similarly)!:
+    1.) batch history is a list of all of the bathches used, divided into the step sets
+    2.) batch_history[0] is the set of batches used for each step, for the first set
+    of steps
+    3.) batch_history[0][0] is batch used on the first step of the first set of steps
+    4.) batch_history[0][0][0] is the first vector used in batch_histroy[0][0]
+    """
+
+    step_size_list,m_visible,n_hidden, alpha_list, k_steps_list, batch_size = run_parameters 
+
+    #Generate random initial theta to start the learning with:
+    init_b = np.asarray([random.uniform(-1,1) for j in range(m_visible)])
+    init_c = np.asarray([random.uniform(-1,1) for i in range(n_hidden)])
+    init_w = np.asarray([[random.uniform(-1,1) for j in range(m_visible)] for i in range(n_hidden)])
+    #theta = {w_ij,b_i, c_j}:
+    init_theta = init_w, init_b, init_c
+    
+    #Number of cureves for the distribution plot
+    N_curves = len(step_size_list)
+    
+    
+    #Generate the set of all vectors associated with the Ising model
     allv = all_vectors_ising(m_visible)
     allh = all_vectors_ising(n_hidden)
     
-    if plot:
-        plt.figure()
-        plt.title("Learned distribution", fontsize = 20)
-    
-    
-    total_steps = sum(steps)
-    theta_history_list = np.zeros(sum(steps), dtype = object)
-    
-    
-    
+    total_steps = sum(step_size_list) #Total number of steps used in learning
+    #Empty list ready to record all theta, batches and v(k) generated:
+    theta_history_list = np.zeros(sum(step_size_list), dtype = object)
     batch_history = np.zeros(total_steps, dtype = object)
     cdk_history = np.zeros(total_steps, dtype = object)
     
-    labels = [i for i in range(2**m_visible)]
-    init_dist = learned_distribution(theta, m_visible, n_hidden)
-
-    if plot:
-        plt.plot(labels, init_dist, label = "Initial distribution", color = 'k')
-    
-    
+    theta = init_theta #Set the "current" theta to the initial theta
+    #before running the algorithm to advance theta
     for step in tqdm(range(N_curves),  position=0, leave=True):
-        N_steps = steps[step]
+        #For each learning region, extract number of steps, alpha and k
+        N_steps = step_size_list[step]
         alpha = alpha_list[step]
-        k = k_list[step]
+        k = k_steps_list[step]
         
-        batches_current_run = np.zeros(N_steps, dtype = object)
-        
-        this_step_theta_history = []
+        #Empty arrays for current learning region data:
+        #batches_current_run = np.zeros(N_steps, dtype = object)
+        #this_step_theta_history = []
         for this_step in tqdm(range(N_steps),  position=0, leave=True):
+            #For each step in the current learning run
             
-            theta_new, batch = take_N_cdk_steps(allv, allh, theta,alpha, 1, k, n_hidden, batch_size, init_v)
-            theta = theta_new[-1] #Take the kth cdk theta output
-            this_step_theta_history.append(theta)
+            #Generate a batch and associated theta using contrastive divergence algorithm,
+            #Note 1 step taken as generalisation to N needed workaround to keep theta and batch history,
+            #so instead, this function is just called many times.
+            theta_new_list, batch_record = take_N_cdk_steps(allv, allh, theta,alpha, 1, k, batch_size)
+            theta = theta_new_list[-1] #Take the kth cdk theta output
+
+            #this_step_theta_history.append(theta) 
            
-            i = sum(steps[:step]) + this_step
-            theta_history_list[i] = theta
+            i = sum(step_size_list[:step]) + this_step #This step number (total)
+            theta_history_list[i] = theta #Record this as theta for this step
 
-            batches_current_run[this_step] = batch[-1] #Take the kth batch 
+            #batches_current_run[this_step] = batch_record #List out all the batches used.
         
-            batch_history[step] = batches_current_run
-            
-      
-        
-        
-        
-        if plot:
-            learned_dist = learned_distribution(theta, m_visible, n_hidden)
-            plt.plot(labels,learned_dist, label = "Epoch number = "+str(step+1))
-
-   
-    init_rep = 0
-    for ii in range(len(init_v)):
-        jj=len(init_v)-ii-1
-        init_rep+=init_v[jj]*(2**ii)
-    #print("Used v configu number is", init_rep)
+            #batch_history[step] = batches_current_run #Record this into the batch history (this is done at every step)
+            batch_history[i] = batch_record[-1] #Take the kth batch
     
-    Z = partition_function(allv, allh,theta)
-    pvgt = prob_v_given_theta(allv, allh, init_v,theta,Z)
-    #print("Prob of used v in final parameter choice is", pvgt)
-    if plot:    
-        plt.scatter(init_rep, pvgt, marker = 'x', color = 'r', label = "Initial vector probability")
-
-        
-        
-    if plot:
-        plt.ylabel("Learned configuration probability", fontsize = 20)
-        plt.xlabel("Ising configuration number", fontsize = 20)
-        plt.yscale('log')
-        plt.legend()
-        plt.show()
-    
-  
-    
-    return theta_history_list, batch_history, cdk_history, init_dist, init_rep, pvgt
-
-
-
-def learn_distribution(run_parameters):#, init_v,init_theta):
-    """Generate random initial theta and init v data, go with it and then plot the learned distribution"""
-    
-    if len(run_parameters)==6: 
-        plot_distribution = False
-        step_size_list,m_visible,n_hidden, alpha_list, k_steps_list, batch_size = run_parameters 
-    else: 
-        step_size_list,m_visible,n_hidden, alpha_list, k_steps_list, batch_size,plot_distribution = run_parameters 
-    N_curves = len(step_size_list)
-    
-    init_b = np.asarray([random.uniform(-1,1) for j in range(m_visible)])
-    init_c = np.asarray([random.uniform(-1,1) for i in range(n_hidden)])
-    
-    init_w = np.asarray([[random.uniform(-1,1) for j in range(m_visible)] for i in range(n_hidden)])
-    
-    init_v = np.asarray(np.random.randint(2, size=m_visible))
-    
-    init_theta = init_w, init_b, init_c
-    
-
-    theta_history_list, batch_history, cdk_history, init_dist, init_rep, pvgt = get_learned_distribution(init_theta, m_visible, n_hidden,
-                              N_curves, alpha_list, k_steps_list,
-                              batch_size, init_v, step_size_list, plot_distribution)
-    
-    
-    distribution_data = init_v, init_theta, theta_history_list, batch_history, cdk_history
+    #Group and return the distribution data
+    distribution_data = init_theta, theta_history_list, batch_history, cdk_history
     return distribution_data
-
-
-    
-
-
-
-
-#print("Time taken for everything was ", time.time() - initial_time, " seconds.")
-
-#print("Theta history length is", len(theta_history_list))
-
-
-#print("Batch history length is", len(batch_history))
-
-#batch history is a list of all of the bathches used, divided into the step sets
-#batch_history[0] is the set of batches used for each step, for the first set
-#of steps
-#batch_history[0][0] is batch used on the first step of the first set of steps
-#batch_history[0][0][0] is the first vector used in batch_histroy[0][0]
